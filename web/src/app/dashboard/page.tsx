@@ -20,8 +20,8 @@ export default function DashboardPage() {
       return;
     }
 
-    setUser(JSON.parse(storedUser));
-    setTenant(JSON.parse(storedTenant));
+    if (storedUser) setUser(JSON.parse(storedUser));
+    if (storedTenant) setTenant(JSON.parse(storedTenant));
   }, [router]);
 
   if (!user) return <div className="loading">Loading...</div>;
