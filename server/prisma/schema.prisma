@@ -1,0 +1,161 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id                 String   @id @default(uuid())
+  name               String
+  businessNumber     String   @unique
+  representativeName String?
+  businessLicenseUrl String?
+  domain             String?  @unique
+  status             String   @default("ACTIVE") // ACTIVE, PENDING, SUSPENDED
+  subscriptionTier   String   @default("FREE") // FREE, PRO, ENTERPRISE
+  maxEmployees       Int      @default(5)      // Per-workspace employee limit
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  memberships   TenantMembership[]
+  departments   Department[]
+  attendances   Attendance[]
+  vacations     Vacation[]
+  approvals     Approval[]
+  mails         Mail[]
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  password        String
+  name            String
+  profileImageUrl String?
+  subscriptionTier String  @default("FREE") // FREE, PRO, ENTERPRISE
+  maxWorkspaces   Int      @default(1)      // Number of workspaces the user can create
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  memberships        TenantMembership[]
+  attendances        Attendance[]
+  vacations          Vacation[]
+  requestedApprovals Approval[] @relation("Requester")
+  assignedApprovals  Approval[] @relation("Approver")
+  sentMails          Mail[]     @relation("SentMails")
+  receivedMails      Mail[]     @relation("ReceivedMails")
+}
+
+model TenantMembership {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role         String   @default("EMPLOYEE") // ADMIN, MANAGER, EMPLOYEE
+  
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  status       String   @default("ACTIVE") // ACTIVE, PENDING
+
+  // HR Information
+  joinDate       DateTime?
+  birthDate      DateTime?
+  resignationDate DateTime?
+  residentNumber String?
+  phone          String?
+  address        String?
+  education      String?
+  certifications String?
+  bankAccount    String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, tenantId])
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  parentId  String?
+  parent    Department? @relation("SubDepartments", fields: [parentId], references: [id])
+  children  Department[] @relation("SubDepartments")
+  name      String
+  level     Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships TenantMembership[]
+}
+
+model Attendance {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  checkIn   DateTime @default(now())
+  checkOut  DateTime?
+  ipAddress String?
+  status    String   @default("NORMAL") // NORMAL, LATE, EARLY_LEAVE
+  createdAt DateTime @default(now())
+}
+
+model Vacation {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   // ANNUAL, SICK, SPECIAL
+  startDate DateTime
+  endDate   DateTime
+  reason    String?
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt DateTime @default(now())
+}
+
+model Approval {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  requesterId String
+  requester User     @relation("Requester", fields: [requesterId], references: [id])
+  approverId  String
+  approver  User     @relation("Approver", fields: [approverId], references: [id])
+  type      String   // VACATION, EXPENSE, GENERAL
+  title     String
+  content   String   @db.Text
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  fileUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Mail {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  
+  senderId    String
+  sender      User     @relation("SentMails", fields: [senderId], references: [id])
+  
+  recipientEmail String
+  recipientId    String? 
+  recipient      User?   @relation("ReceivedMails", fields: [recipientId], references: [id])
+  
+  subject     String
+  content     String   @db.Text
+  isRead      Boolean  @default(false)
+  isStarred   Boolean  @default(false)
+  isTrashed   Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+}
